@@ -2,7 +2,7 @@ use include_dir::{include_dir, Dir};
 use log::{info, warn};
 use serde::Deserialize;
 
-static _COURIERS: Dir<'_> = include_dir!("tracking_number_data/couriers/");
+static COURIERS: Dir<'_> = include_dir!("tracking_number_data/couriers/");
 
 #[derive(Deserialize, Debug)]
 pub struct Tracking {
@@ -14,27 +14,43 @@ pub struct Tracking {
     pub tracking_url: String,
 }
 
-pub fn track(trk_num: &str) -> Vec<Tracking> {
-    let couriers = load_couriers();
-
-    info!("Searching for tracking number: {}", trk_num);
-
-    return couriers;
+#[derive(Deserialize, Debug)]
+struct Courier {
+    name: String,
+    #[serde(rename = "courier_code")]
+    code: String
 }
 
-fn load_couriers() -> Vec<Tracking> {
-    for file in _COURIERS.files() {
-        let contents = match file.contents_utf8() {
-            Some(content) => content,
-            None => {
-                warn!("Unable to read file {}", file.path().display());
-                continue;
-            }
-        };
+pub fn track(trk_num: &str) -> Vec<Tracking> {
+    info!("Searching for tracking number: {}", trk_num);
 
-        let c: Tracking = serde_json::from_str(&contents).unwrap();
-        println!("{:?}", c.courier);
+    let couriers = load_couriers();
+
+    for c in couriers.iter() {
+        println!("Checking {}({})", c.name, c.code);
     }
 
     return vec![];
+}
+
+fn load_couriers() -> Vec<Courier> {
+    return COURIERS
+        .files()
+        .map(|file| {
+            let path = file.path();
+            let content = file.contents_utf8().map(|s| {
+                serde_json::from_str::<Courier>(s)
+            });
+
+            info!("Attempting to read {}", path.display());
+
+            (path, content)
+        })
+        .inspect(|(path, content)| match content {
+            Some(Ok(_))  => (),
+            Some(Err(e)) => warn!("Warning: '{}' is invalid JSON: {}", path.display(), e),
+            None         => warn!("Warning: '{}' is not valid UTF-8", path.display()),
+        })
+        .filter_map(|(_, content)| content?.ok())
+        .collect();
 }

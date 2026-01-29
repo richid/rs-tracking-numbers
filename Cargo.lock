@@ -58,16 +58,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rs-tracking-numbers"
-version = "0.1.0"
-dependencies = [
- "include_dir",
- "log",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -119,6 +109,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tracking-numbers"
+version = "0.1.0"
+dependencies = [
+ "include_dir",
+ "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
