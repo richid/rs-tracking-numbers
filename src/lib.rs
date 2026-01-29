@@ -1,5 +1,5 @@
 use include_dir::{include_dir, Dir};
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde::Deserialize;
 
 static COURIERS: Dir<'_> = include_dir!("tracking_number_data/couriers/");
@@ -27,7 +27,7 @@ pub fn track(trk_num: &str) -> Vec<Tracking> {
     let couriers = load_couriers();
 
     for c in couriers.iter() {
-        println!("Checking {}({})", c.name, c.code);
+        debug!("Checking {}({})", c.name, c.code);
     }
 
     return vec![];
@@ -37,12 +37,12 @@ fn load_couriers() -> Vec<Courier> {
     return COURIERS
         .files()
         .map(|file| {
+            debug!("Loading configuration: {}", file.path().display());
+
             let path = file.path();
             let content = file.contents_utf8().map(|s| {
                 serde_json::from_str::<Courier>(s)
             });
-
-            info!("Attempting to read {}", path.display());
 
             (path, content)
         })
@@ -53,4 +53,27 @@ fn load_couriers() -> Vec<Courier> {
         })
         .filter_map(|(_, content)| content?.ok())
         .collect();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let result = load_couriers();
+        assert_eq!(result.len(), 12);
+    }
+
+    #[test]
+    fn it_works2() {
+        let result = load_couriers();
+        assert_eq!(result[0].code, "amazon");
+    }
+
+    #[test]
+    fn it_works3() {
+        let result = load_couriers();
+        assert_eq!(result[11].code, "usps");
+    }
 }
