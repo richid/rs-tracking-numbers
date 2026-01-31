@@ -1,6 +1,7 @@
 use include_dir::{include_dir, Dir};
 use log::{debug, info, warn};
-use serde::Deserialize;
+use pcre2::bytes::Regex;
+use serde::{Deserialize, Deserializer};
 
 static COURIERS: Dir<'_> = include_dir!("tracking_number_data/couriers/");
 
@@ -9,8 +10,6 @@ pub struct Tracking {
     pub courier: String,
     pub service: String,
     pub tracking_number: String,
-    pub serial_number: String,
-    pub check_digit: String,
     pub tracking_url: String,
 }
 
@@ -18,19 +17,93 @@ pub struct Tracking {
 struct Courier {
     name: String,
     #[serde(rename = "courier_code")]
-    code: String
+    code: String,
+    tracking_numbers: Vec<TrackingNumber>,
 }
 
-pub fn track(trk_num: &str) -> Vec<Tracking> {
-    info!("Searching for tracking number: {}", trk_num);
-
-    let couriers = load_couriers();
-
-    for c in couriers.iter() {
-        debug!("Checking {}({})", c.name, c.code);
+fn deserialize_pcre<'de, D>(deserializer: D) -> Result<Regex, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawRegex {
+        Single(String),
+        Multi(Vec<String>),
     }
 
-    return vec![];
+    let raw = RawRegex::deserialize(deserializer)?;
+    let regex_str = match raw {
+        RawRegex::Single(s) => s,
+        RawRegex::Multi(v)  => v.join("")
+    };
+
+    Regex::new(&regex_str).map_err(|e| {
+        serde::de::Error::custom(format!("Invalid PCRE2 regex '{}': {}", regex_str, e))
+    })
+}
+
+#[derive(Deserialize, Debug)]
+struct TrackingNumber {
+    name: String,
+    //#[serde(default)]
+    //id: String, // FIXME is this needed?
+    #[serde(deserialize_with = "deserialize_pcre")]
+    regex: Regex,
+    #[cfg(test)]
+    test_numbers: TestNumbers,
+    #[serde(default)]
+    tracking_url: String
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TestNumbers {
+    pub valid: Vec<String>,
+    pub invalid: Vec<String>,
+}
+
+impl TrackingNumber {
+    fn check_format(&self, tracking_number: &str) -> bool {
+        let input_bytes = tracking_number.as_bytes();
+
+        debug!("Testing input number {} against regex {:?}", tracking_number, self.regex);
+
+        self.regex.is_match(input_bytes).unwrap_or(false)
+    }
+
+    fn check_checksum(&self, tracking_number: &str) -> bool {
+        true
+    }
+
+    fn check_additional(&self, tracking_number: &str) -> bool {
+        true
+    }
+
+    fn is_valid(&self, tracking_number: &str) -> bool {
+        self.check_format(tracking_number) &&
+        self.check_checksum(tracking_number) &&
+        self.check_additional(tracking_number)
+    }
+}
+
+pub fn track(trk_num: &str) -> Option<Tracking> {
+    info!("Searching for tracking number: {}", trk_num);
+
+    for c in load_couriers().iter() {
+        debug!("Checking {} ({})", c.name, c.code);
+        for tn in c.tracking_numbers.iter() {
+            if tn.is_valid(trk_num) {
+                return Some(Tracking {
+                    courier: c.name.to_string(),
+                    service: tn.name.to_string(),
+                    tracking_number: trk_num.to_string(),
+                    tracking_url: "<trk_url>".to_string(),
+                });
+            }
+        }
+    }
+
+    return None
 }
 
 fn load_couriers() -> Vec<Courier> {
@@ -60,20 +133,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        let result = load_couriers();
-        assert_eq!(result.len(), 12);
+    fn test_load() {
+        let couriers = load_couriers();
+        assert_eq!(couriers.len(), 12);
     }
 
     #[test]
-    fn it_works2() {
-        let result = load_couriers();
-        assert_eq!(result[0].code, "amazon");
+    fn test_valid_numbers() {
+        for c in load_couriers().iter() {
+            for tn in c.tracking_numbers.iter() {
+                for test_num in tn.test_numbers.valid.iter() {
+                    assert_eq!(true, tn.is_valid(test_num),
+                        "Regex match failed when it should have succeeded. Courier: {} ({}) Tracking Number: {}", c.name, tn.name, test_num);
+                }
+            }
+        }
     }
 
     #[test]
-    fn it_works3() {
-        let result = load_couriers();
-        assert_eq!(result[11].code, "usps");
+    fn test_invalid_numbers() {
+        for c in load_couriers().iter() {
+            for tn in c.tracking_numbers.iter() {
+                for test_num in tn.test_numbers.invalid.iter() {
+                    assert_eq!(false, tn.is_valid(test_num),
+                    "Regex match succeeded when it should have failed. Courier: {} ({}) Tracking Number: {}", c.name, tn.name, test_num);
+                }
+            }
+        }
     }
 }
