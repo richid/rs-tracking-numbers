@@ -54,13 +54,13 @@ struct TrackingNumber {
     regex: Regex,
     #[cfg(test)]
     test_numbers: TestNumbers,
-    //#[serde(default)]
     tracking_url: Option<String>,
     validation: Validation,
     #[serde(default)]
     additional: Vec<AdditionalLookup>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct TestNumbers {
     pub valid: Vec<String>,
@@ -287,11 +287,16 @@ pub fn track(trk_num: &str) -> Option<TrackingResult> {
         debug!("Checking {} ({})", courier.name, courier.code);
         for tn in &courier.tracking_numbers {
             if tn.is_valid(trk_num) {
+                let tracking_url = tn.tracking_url
+                    .as_ref()
+                    .map(|url| url.replace("%s", trk_num))
+                    .unwrap_or_else(|| String::new());
+
                 return Some(TrackingResult {
                     courier: courier.name.to_string(),
                     service: tn.name.to_string(),
                     tracking_number: trk_num.to_string(),
-                    tracking_url: "<trk_url>".to_string(),
+                    tracking_url,
                 });
             }
         }
@@ -351,6 +356,31 @@ mod tests {
                     assert_eq!(false, tn.is_valid(&invalid_num));
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_tracking_url() {
+        // Test with a UPS tracking number
+        let result = track("1Z5R89390357567127");
+        assert!(result.is_some(), "Should find UPS tracking number");
+
+        if let Some(tracking) = result {
+            assert!(tracking.tracking_url.contains("1Z5R89390357567127"),
+                    "URL should contain the tracking number");
+            assert!(!tracking.tracking_url.contains("%s"),
+                    "URL should not contain the placeholder");
+            println!("UPS URL: {}", tracking.tracking_url);
+        }
+
+        // Test with a Canada Post tracking number
+        let result = track("0073938000549297");
+        assert!(result.is_some(), "Should find Canada Post tracking number");
+
+        if let Some(tracking) = result {
+            assert!(tracking.tracking_url.contains("0073938000549297"),
+                    "URL should contain the tracking number");
+            println!("Canada Post URL: {}", tracking.tracking_url);
         }
     }
 }
