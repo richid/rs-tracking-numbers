@@ -1,6 +1,7 @@
 mod validators;
 
 use include_dir::{include_dir, Dir};
+use lazy_static::lazy_static;
 use log::{debug, info, warn};
 use pcre2::bytes::Regex;
 use serde::{Deserialize, Deserializer};
@@ -8,6 +9,10 @@ use serde_json;
 use validators::Validator;
 
 static COURIERS: Dir<'_> = include_dir!("tracking_number_data/couriers/");
+
+lazy_static! {
+    static ref COURIERS_CACHE: Vec<Courier> = load_couriers();
+}
 
 #[derive(Deserialize, Debug)]
 pub struct TrackingResult {
@@ -283,7 +288,7 @@ impl TrackingNumber {
 pub fn track(trk_num: &str) -> Option<TrackingResult> {
     info!("Searching for tracking number: {}", trk_num);
 
-    for courier in load_couriers().iter() {
+    for courier in COURIERS_CACHE.iter() {
         debug!("Checking {} ({})", courier.name, courier.code);
         for tn in &courier.tracking_numbers {
             if tn.is_valid(trk_num) {

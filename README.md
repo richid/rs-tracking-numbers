@@ -4,6 +4,8 @@ A Rust library for validating and identifying tracking numbers from various ship
 underlying tracking number formats are provided by the [`tracking_number_data`](https://github.com/jkeen/tracking_number_data/)
 project and provides a Rust wrapper around them.
 
+Also: a fun way to experiment with Rust.
+
 ## Features
 
 - 🔍 **Automatic Courier Detection** - Identifies which courier a tracking number belongs to
@@ -65,6 +67,20 @@ cargo build --release
 
 # Run tests
 cargo test
+```
+
+## Benchmarking
+
+Run initial benchmark and save baseline:
+```bash
+# Save the baseline for comparison
+cargo bench --bench tracking_benchmark -- --save-baseline before
+```
+
+After changes are made, run new benchmark comparing against baseline
+```bash
+# Run benchmark with the new baseline
+cargo bench --bench tracking_benchmark -- --baseline before
 ```
 
 ## License
