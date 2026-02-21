@@ -47,8 +47,16 @@ where
         RawRegex::Multi(v)  => v.join("")
     };
 
-    Regex::new(&regex_str).map_err(|e| {
-        serde::de::Error::custom(format!("Invalid PCRE2 regex '{}': {}", regex_str, e))
+    // Anchor the pattern to ensure full string match, preventing
+    // substring matches that cause misidentification across couriers
+    let anchored = if regex_str.starts_with('^') {
+        regex_str
+    } else {
+        format!("^{}$", regex_str)
+    };
+
+    Regex::new(&anchored).map_err(|e| {
+        serde::de::Error::custom(format!("Invalid PCRE2 regex '{}': {}", anchored, e))
     })
 }
 
@@ -386,6 +394,37 @@ mod tests {
             assert!(tracking.tracking_url.contains("0073938000549297"),
                     "URL should contain the tracking number");
             println!("Canada Post URL: {}", tracking.tracking_url);
+        }
+    }
+
+    #[test]
+    fn test_courier_identification() {
+        // Verify that regex anchoring prevents substring matches from
+        // causing misidentification. Without anchoring, shorter patterns
+        // (e.g. FedEx Ground's 15-digit pattern) can match substrings
+        // within longer tracking numbers from other couriers.
+        let cases = vec![
+            ("9400111206206406260787", "United States Postal Service", "USPS 22"),
+            ("GM2951173225174494", "DHL", "DHL E-Commerce"),
+            ("986578788855", "FedEx", "FedEx Express (12)"),
+            ("1Z5R89390357567127", "UPS", "UPS"),
+            ("0073938000549297", "Canada Post", "Canada Post (16)"),
+        ];
+
+        for (number, expected_courier, expected_service) in cases {
+            let result = track(number);
+            assert!(result.is_some(), "Should find tracking number: {}", number);
+            let tracking = result.unwrap();
+            assert_eq!(
+                tracking.courier, expected_courier,
+                "Wrong courier for {}: expected '{}', got '{}'",
+                number, expected_courier, tracking.courier
+            );
+            assert_eq!(
+                tracking.service, expected_service,
+                "Wrong service for {}: expected '{}', got '{}'",
+                number, expected_service, tracking.service
+            );
         }
     }
 }
