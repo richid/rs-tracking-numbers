@@ -61,6 +61,11 @@ where
 }
 
 #[derive(Deserialize, Debug)]
+struct Partner {
+    partner_type: String,
+}
+
+#[derive(Deserialize, Debug)]
 struct TrackingNumber {
     name: String,
     #[serde(deserialize_with = "deserialize_pcre")]
@@ -71,6 +76,8 @@ struct TrackingNumber {
     validation: Validation,
     #[serde(default)]
     additional: Vec<AdditionalLookup>,
+    #[serde(default)]
+    partners: Vec<Partner>,
 }
 
 #[allow(dead_code)]
@@ -300,6 +307,12 @@ pub fn track(trk_num: &str) -> Option<TrackingResult> {
         debug!("Checking {} ({})", courier.name, courier.code);
         for tn in &courier.tracking_numbers {
             if tn.is_valid(trk_num) {
+                // Skip patterns that hand off to another carrier for delivery.
+                // The carrier's own pattern will match instead (e.g., USPS 91).
+                if tn.partners.iter().any(|p| p.partner_type == "carrier") {
+                    continue;
+                }
+
                 let tracking_url = tn.tracking_url
                     .as_ref()
                     .map(|url| url.replace("%s", trk_num))
@@ -409,6 +422,10 @@ mod tests {
             ("986578788855", "FedEx", "FedEx Express (12)"),
             ("1Z5R89390357567127", "UPS", "UPS"),
             ("0073938000549297", "Canada Post", "Canada Post (16)"),
+            // USPS IMpd barcodes used by FedEx SmartPost should resolve to USPS.
+            // Synthetic numbers with valid mod10 checksums (not real shipments).
+            ("9261291234567812345679", "United States Postal Service", "USPS 91"),
+            ("9261298765432176543211", "United States Postal Service", "USPS 91"),
         ];
 
         for (number, expected_courier, expected_service) in cases {

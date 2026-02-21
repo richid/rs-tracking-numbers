@@ -545,7 +545,7 @@ dependencies = [
 
 [[package]]
 name = "tracking-numbers"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "criterion",
  "include_dir",

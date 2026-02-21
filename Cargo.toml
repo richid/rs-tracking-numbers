@@ -1,6 +1,6 @@
 [package]
 name = "tracking-numbers"
-version = "0.1.1"
+version = "0.1.2"
 description = "A library for validating and identifying tracking numbers from various shipping carriers."
 homepage = "https://github.com/richid/rs-tracking-numbers"
 documentation = "https://github.com/richid/rs-tracking-numbers"
