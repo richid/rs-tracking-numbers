@@ -17,13 +17,11 @@ Also: a fun way to experiment with Rust.
 
 ## Installation
 
-**TBD:** Publish to crates.io
-
 Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tracking-numbers = "0.1.0"
+tracking-numbers = "0.1"
 ```
 
 ## Usage
